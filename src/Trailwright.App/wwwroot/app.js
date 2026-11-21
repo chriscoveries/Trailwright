@@ -87,6 +87,7 @@ const S = {
   catalog: null, byGuid: new Map(), scene: { blocks: [] }, revision: -1, state: null,
   tool: 'select', part: null, rot: fromEuler(0, 0, 0), color1: 22, color2: null,
   selected: null, category: 'All', occupied: new Map(),
+  favourites: new Set(), recent: [],
 };
 
 // ---------- three.js ----------
@@ -560,6 +561,11 @@ async function nudge(dx, dy, dz) {
 }
 
 window.addEventListener('keydown', (e) => {
+  if (e.target === $('partSearch') && e.key === 'Escape') {
+    e.preventDefault();
+    if (e.target.value) { e.target.value = ''; renderParts(); } else e.target.blur();
+    return;
+  }
   if (e.target.closest('input, textarea, select') || document.querySelector('dialog[open]')) return;
   const k = e.key.toLowerCase();
   if (e.ctrlKey && k === 'z') { e.preventDefault(); act(() => api('undo', {})); return; }
@@ -567,7 +573,8 @@ window.addEventListener('keydown', (e) => {
   if (e.ctrlKey && k === 's') { e.preventDefault(); save(false); return; }
   if (e.ctrlKey && k === 'o') { e.preventDefault(); openLibrary(); return; }
   if (e.ctrlKey && k === 'n') { e.preventDefault(); newBuild(); return; }
-  if (e.ctrlKey) return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (k === '/') { e.preventDefault(); $('partSearch').focus(); $('partSearch').select(); return; }
   const map = { v: 'select', b: 'build', p: 'paint', e: 'erase' };
   if (map[k]) { setTool(map[k]); return; }
   if (k === 'r') rotate('y');
@@ -583,15 +590,33 @@ window.addEventListener('keydown', (e) => {
 });
 
 // ---------- parts palette ----------
-const catOrder = ['All', 'FRAME', 'SEAT', 'WHEEL', 'PROPULSION', 'MECHANIC', 'AERODYNAMIC', 'GADGETS', 'LIGHTS'];
+const catOrder = ['All', 'Favourites', 'Recent', 'FRAME', 'SEAT', 'WHEEL', 'PROPULSION', 'MECHANIC', 'AERODYNAMIC', 'GADGETS', 'LIGHTS'];
 function renderCats() {
   const cats = new Set(S.catalog.blocks.map((b) => b.category));
-  const ordered = [...catOrder.filter((c) => c === 'All' || cats.has(c)), ...[...cats].filter((c) => !catOrder.includes(c)).sort()];
+  const special = ['All', 'Favourites', 'Recent'];
+  const ordered = [...catOrder.filter((c) => special.includes(c) || cats.has(c)), ...[...cats].filter((c) => !catOrder.includes(c)).sort()];
   $('cats').replaceChildren(...ordered.map((c) => el('button', {
     class: c === S.category ? 'on' : '', onclick: () => { S.category = c; renderCats(); renderParts(); },
   }, prettyCat(c))));
 }
-const prettyCat = (c) => c === 'All' ? 'All' : c.replace(/^ACCESSORY_/, '').toLowerCase().replace(/_/g, ' ').replace(/^\w/, (m) => m.toUpperCase());
+const prettyCat = (c) => ['All', 'Favourites', 'Recent'].includes(c) ? c : c.replace(/^ACCESSORY_/, '').toLowerCase().replace(/_/g, ' ').replace(/^\w/, (m) => m.toUpperCase());
+
+function choosePart(t) {
+  S.part = t;
+  S.rot = fromEuler(0, 0, 0);
+  S.recent = [t.guid, ...S.recent.filter((id) => id !== t.guid)].slice(0, 12);
+  setTool('build');
+  renderCats();
+  renderParts();
+}
+async function toggleFavourite(t) {
+  const want = !S.favourites.has(t.guid);
+  try {
+    const result = await api('favorites', { guid: t.guid, favorite: want });
+    S.favourites = new Set(result.favorites);
+    renderParts();
+  } catch (e) { toast(e.message); }
+}
 
 function drawPartIcon(cv, t) {
   const ctx = cv.getContext('2d');
@@ -616,17 +641,36 @@ const paletteHex = (i) => S.catalog.palette[i] ?? '#9e9e9e';
 function renderParts() {
   const q = $('partSearch').value.trim().toLowerCase();
   const list = S.catalog.blocks
-    .filter((b) => (S.category === 'All' || b.category === S.category) && (!q || b.name.toLowerCase().includes(q)))
-    .sort((a, b) => a.category.localeCompare(b.category) || a.sort - b.sort || a.name.localeCompare(b.name))
-    .slice(0, 400);
-  $('partGrid').replaceChildren(...list.map((t) => {
+    .filter((b) =>
+      (S.category === 'All' || (S.category === 'Favourites' && S.favourites.has(b.guid))
+       || (S.category === 'Recent' && S.recent.includes(b.guid)) || b.category === S.category)
+      && (!q || b.name.toLowerCase().includes(q)))
+    .sort((a, b) => S.category === 'Recent'
+      ? S.recent.indexOf(a.guid) - S.recent.indexOf(b.guid)
+      : a.category.localeCompare(b.category) || a.sort - b.sort || a.name.localeCompare(b.name));
+  const visible = list.slice(0, 400);
+  $('partCount').textContent = visible.length === list.length
+    ? `${list.length} parts`
+    : `Showing ${visible.length} of ${list.length} parts (search to narrow)`;
+  if (list.length === 0) {
+    $('partGrid').replaceChildren(el('div', { class: 'parts-empty' },
+      S.category === 'Favourites' && !q ? 'Star parts to keep them here.' :
+      S.category === 'Recent' && !q ? 'Used parts will appear here.' : 'No matching parts.'));
+    return;
+  }
+  $('partGrid').replaceChildren(...visible.map((t) => {
     const cv = el('canvas');
     drawPartIcon(cv, t);
     const sz = [0, 1, 2].map((i) => t.gridMax[i] - t.gridMin[i] + 1).join('×');
-    return el('div', {
-      class: 'part' + (S.part?.guid === t.guid ? ' on' : ''), title: t.name,
-      onclick: () => { S.part = t; S.rot = fromEuler(0, 0, 0); setTool('build'); renderParts(); },
-    }, cv, el('div', { class: 'nm' }, t.name), el('div', { class: 'sz' }, sz + (t.sliders?.length ? ' · settings' : '')));
+    const star = S.favourites.has(t.guid);
+    return el('div', { class: 'part' + (S.part?.guid === t.guid ? ' on' : '') },
+      el('button', { class: 'part-choice', title: t.name,
+        onclick: () => choosePart(t) },
+        cv, el('span', { class: 'nm' }, t.name),
+        el('span', { class: 'sz' }, sz + (t.sliders?.length ? ' · settings' : ''))),
+      el('button', { class: 'part-star', title: star ? 'Remove from favourites' : 'Add to favourites',
+        'aria-label': (star ? 'Remove ' : 'Favourite ') + t.name,
+        'aria-pressed': String(star), onclick: () => toggleFavourite(t) }, star ? '★' : '☆'));
   }));
 }
 $('partSearch').addEventListener('input', renderParts);
@@ -849,6 +893,7 @@ setInterval(async () => {
   const ver = (S.catalog.version || '').replace(/\+(.{7}).*/, ' ($1)');
   $('build').textContent = `Trailwright ${ver} · ` + (modelCount ? `real models: ${modelCount} block types` : 'no block models found (run tools/re/export_models.py)');
   S.catalog.blocks.forEach((b) => S.byGuid.set(b.guid, b));
+  S.favourites = new Set(S.catalog.favorites || []);
   renderCats(); renderSwatches(); renderParts(); setTool('select');
   resize();
   await refreshScene(true);

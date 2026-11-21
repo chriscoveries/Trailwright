@@ -30,6 +30,7 @@ Set `TRAILMAKERS_DIR` first if the game is not in the default Steam folder. With
 - **Unrestricted** (off by default): lets settings go past the game's limits. See the note below.
 - **AI port**: a local [MCP](https://modelcontextprotocol.io) server that lets an AI model work inside the builder.
 - **Safe saving**: "Save" overwrites the file you opened, but copies the old one to `%LOCALAPPDATA%\Trailwright\backups` first. "Save as new" writes a new `Blueprint_<timestamp>.png`. Nothing is ever deleted.
+- **Parts palette**: star favourite parts to keep them across sessions, use Recent for the last 12 selected parts, press / to search and Escape to clear it. The results counter shows when a list is capped at 400.
 
 ### About Unrestricted settings
 

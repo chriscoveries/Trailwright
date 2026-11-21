@@ -48,7 +48,8 @@
   <aside class="left">
     <section class="panel parts">
       <div class="panel-title">Parts</div>
-      <input type="search" id="partSearch" placeholder="Search parts">
+      <input type="search" id="partSearch" placeholder="Search parts (/)" aria-label="Search parts">
+      <div id="partCount" class="part-count" aria-live="polite"></div>
       <div class="cats" id="cats"></div>
       <div class="partgrid" id="partGrid"></div>
     </section>

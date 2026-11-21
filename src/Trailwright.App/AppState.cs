@@ -11,6 +11,7 @@ public sealed class Settings
     public int AiPort { get; set; } = 7341;
     public bool AiCanSave { get; set; } = true;
     public string? TrailmakersFolder { get; set; }
+    public List<string> FavoriteBlocks { get; set; } = [];
 
     /// <summary>Set when command-line overrides are in effect (testing): nothing is written to disk then.</summary>
     [JsonIgnore] public bool Transient { get; set; }

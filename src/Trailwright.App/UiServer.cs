@@ -23,6 +23,7 @@ public static class UiServer
     public sealed record SaveReq(bool AsNew);
     public sealed record SettingsReq(bool? Unrestricted, bool? AiEnabled, int? AiPort, bool? AiCanSave);
     public sealed record PictureReq(string DataUrl, int Revision);
+    public sealed record FavoriteReq(string Guid, bool Favorite);
 
     static readonly System.Text.RegularExpressions.Regex ModelFile = new(@"^[0-9a-f\-]{36}_\d{1,2}\.bin$");
 
@@ -62,6 +63,7 @@ public static class UiServer
         {
             version = typeof(UiServer).Assembly.GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
                 .OfType<System.Reflection.AssemblyInformationalVersionAttribute>().FirstOrDefault()?.InformationalVersion,
+            favorites = s.Settings.FavoriteBlocks ?? [],
             palette = s.Catalog.Palette,
             categories = s.Catalog.CategoryNames,
             actions = s.Catalog.Actions,
@@ -155,6 +157,20 @@ public static class UiServer
         app.MapPost("/api/undo", () => Results.Json(new { ok = s.Editor.Undo() }));
         app.MapPost("/api/redo", () => Results.Json(new { ok = s.Editor.Redo() }));
         app.MapPost("/api/save", (SaveReq r) => Results.Json(new { path = s.Save(r.AsNew) }));
+        app.MapPost("/api/favorites", (FavoriteReq r) =>
+        {
+            if (!Guid.TryParse(r.Guid, out var id) || s.Catalog.Find(id)?.Template == null)
+                throw new EditException("unknown block type");
+            lock (s.Settings)
+            {
+                var favorites = s.Settings.FavoriteBlocks ??= [];
+                string canonical = id.ToString("D");
+                favorites.RemoveAll(item => string.Equals(item, canonical, StringComparison.OrdinalIgnoreCase));
+                if (r.Favorite) favorites.Add(canonical);
+                s.Settings.Save();
+                return Results.Json(new { favorites = favorites.ToArray() }, AppState.Json);
+            }
+        });
         app.MapPost("/api/settings", async (SettingsReq r) =>
         {
             if (r.Unrestricted != null) s.Editor.Unrestricted = r.Unrestricted.Value;
