@@ -61,6 +61,14 @@
 
   <section class="viewport" id="viewport">
     <canvas id="view"></canvas>
+    <div class="view-controls" role="group" aria-label="Camera controls">
+      <button type="button" data-view="fit" title="Fit entire vehicle (Home)">Fit</button>
+      <button type="button" data-view="focus" id="viewFocus" title="Focus selected block (Shift+Home)" disabled>Focus</button>
+      <button type="button" data-view="front" title="Front view (1)">Front</button>
+      <button type="button" data-view="right" title="Right view (2)">Right</button>
+      <button type="button" data-view="top" title="Top view (3)">Top</button>
+      <button type="button" data-view="grid" aria-pressed="true" title="Show or hide grid (G)">Grid</button>
+    </div>
     <div class="overlay tl" id="buildTitle"></div>
     <div class="overlay bl" id="hud">Left click: act &middot; right drag: orbit &middot; middle drag / shift+right: pan &middot; wheel: zoom</div>
     <div class="toast" id="toast"></div>

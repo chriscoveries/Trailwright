@@ -114,7 +114,7 @@ const fill = new THREE.DirectionalLight(0x9db8ff, 0.45);
 fill.position.set(-40, 20, 40);
 scene3.add(fill);
 
-let grid;
+let grid, gridVisible = true;
 function makeGrid(size, y) {
   if (grid) scene3.remove(grid);
   grid = new THREE.Group();
@@ -127,6 +127,7 @@ function makeGrid(size, y) {
   plate.rotation.x = -Math.PI / 2; plate.position.y = y - 0.01;
   grid.add(plate, g1, g2);
   grid.userData.y = y;
+  grid.visible = gridVisible;
   scene3.add(grid);
 }
 makeGrid(64, -0.5);
@@ -354,13 +355,61 @@ function buildBoxWorld() {
 }
 
 function frameAll() {
-  if (!S.scene.blocks.length) { controls.target.set(0, 0, 0); camera.position.set(14, 12, 18); return; }
-  const box = buildBoxWorld();
-  const c = box.getCenter(new THREE.Vector3());
-  const r = box.getSize(new THREE.Vector3()).length() * 0.5 + 2;
-  controls.target.copy(c);
-  camera.position.copy(c).add(new THREE.Vector3(1, 0.8, 1.2).normalize().multiplyScalar(r * 2.4));
+  camera.up.set(0, 1, 0);
+  if (!S.scene.blocks.length) {
+    controls.target.set(0, 0, 0);
+    camera.position.set(14, 12, 18);
+  } else {
+    const box = buildBoxWorld();
+    const c = box.getCenter(new THREE.Vector3());
+    const r = box.getSize(new THREE.Vector3()).length() * 0.5 + 2;
+    controls.target.copy(c);
+    camera.position.copy(c).add(new THREE.Vector3(1, 0.8, 1.2).normalize().multiplyScalar(r * 2.4));
+  }
+  controls.update();
 }
+
+function focusSelected() {
+  const block = S.scene.blocks.find((b) => b.id === S.selected);
+  if (!block) { frameAll(); return; }
+  world.updateMatrixWorld();
+  const box = boxOf(block).applyMatrix4(world.matrixWorld);
+  const centre = box.getCenter(new THREE.Vector3());
+  const radius = box.getSize(new THREE.Vector3()).length() * 0.5 + 2;
+  const direction = camera.position.clone().sub(controls.target);
+  if (direction.lengthSq() < 0.001) direction.set(1, 0.8, 1.2);
+  controls.target.copy(centre);
+  camera.position.copy(centre).add(direction.normalize().multiplyScalar(Math.max(5, radius * 2.4)));
+  controls.update();
+}
+
+function setView(view) {
+  if (view === 'fit') { frameAll(); return; }
+  if (view === 'focus') { focusSelected(); return; }
+  if (view === 'grid') {
+    gridVisible = !gridVisible;
+    if (grid) grid.visible = gridVisible;
+    document.querySelector('[data-view="grid"]').setAttribute('aria-pressed', String(gridVisible));
+    return;
+  }
+  const directions = {
+    front: { position: [0, 0, -1], up: [0, 1, 0] },
+    right: { position: [1, 0, 0], up: [0, 1, 0] },
+    top: { position: [0, 1, 0], up: [0, 0, -1] },
+  };
+  const preset = directions[view];
+  if (!preset) return;
+  const box = S.scene.blocks.length ? buildBoxWorld()
+    : new THREE.Box3(new THREE.Vector3(-2, -2, -2), new THREE.Vector3(2, 2, 2));
+  const centre = box.getCenter(new THREE.Vector3());
+  const radius = box.getSize(new THREE.Vector3()).length() * 0.5 + 2;
+  camera.up.set(...preset.up);
+  controls.target.copy(centre);
+  camera.position.copy(centre).add(new THREE.Vector3(...preset.position).multiplyScalar(radius * 2.4));
+  controls.update();
+}
+document.querySelectorAll('[data-view]').forEach((b) =>
+  b.addEventListener('click', () => setView(b.dataset.view)));
 
 function resize() {
   const vp = $('viewport');
@@ -575,7 +624,11 @@ window.addEventListener('keydown', (e) => {
   else if (k === 'f') rotate('z');
   else if (k === 'escape') { setTool('select'); select(null); }
   else if ((k === 'delete' || k === 'backspace') && S.selected != null) { const id = S.selected; select(null); act(() => api('remove', { ids: [id] })); }
-  else if (k === 'home') frameAll();
+  else if (k === 'home') { e.preventDefault(); setView(e.shiftKey ? 'focus' : 'fit'); }
+  else if (k === '1') setView('front');
+  else if (k === '2') setView('right');
+  else if (k === '3') setView('top');
+  else if (k === 'g') setView('grid');
   else if (S.selected != null && S.tool === 'select') {
     const step = { arrowleft: [-1, 0, 0], arrowright: [1, 0, 0], arrowup: [0, 0, 1], arrowdown: [0, 0, -1], pageup: [0, 1, 0], pagedown: [0, -1, 0] }[k];
     if (step) { e.preventDefault(); nudge(...step); }
@@ -650,6 +703,7 @@ function select(id) {
 }
 function updateSelection() {
   const b = S.scene.blocks.find((x) => x.id === S.selected);
+  $('viewFocus').disabled = !b;
   if (!b) { selBox.visible = false; if (S.selected != null) { S.selected = null; renderProps(); } return; }
   selBox.box.copy(boxOf(b)).expandByScalar(0.03);
   selBox.visible = true;

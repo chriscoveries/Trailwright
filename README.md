@@ -25,7 +25,7 @@ Set `TRAILMAKERS_DIR` first if the game is not in the default Steam folder. With
 ## What it does
 
 - **Library**: browse every blueprint, autosave and transformation slot with its picture, name and block count.
-- **Builder**: a 3D view of the vehicle. Select, build, paint and erase blocks; move them with the arrow keys and Page Up/Down; turn them with R / T / F; undo and redo. Every block in the game's catalog (502 types) is in the parts palette with its real size.
+- **Builder**: a 3D view of the vehicle. Select, build, paint and erase blocks; move them with the arrow keys and Page Up/Down; turn them with R / T / F; undo and redo. Camera controls include Fit (Home), Focus selected (Shift+Home), Front (1), Right (2), Top (3), and grid visibility (G). Every block in the game's catalog (502 types) is in the parts palette with its real size.
 - **Block settings**: the sliders from the game's block menu (speed, strength, damping, angle, power...) with the game's own ranges, plus key bindings.
 - **Unrestricted** (off by default): lets settings go past the game's limits. See the note below.
 - **AI port**: a local [MCP](https://modelcontextprotocol.io) server that lets an AI model work inside the builder.
